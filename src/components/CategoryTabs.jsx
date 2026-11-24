@@ -20,37 +20,39 @@ const ICON_MAP = {
 
 export default function CategoryTabs({ activeCategory, onSelectCategory, itemCounts }) {
   return (
-    <div className="w-full mb-6">
-      <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-2 px-1">
-        {CATEGORIES.map((cat) => {
-          const Icon = ICON_MAP[cat.icon] || LayoutGrid;
-          const isActive = activeCategory === cat.id;
-          const count = itemCounts[cat.id] || 0;
+    <div className="w-full mb-4 sm:mb-6">
+      <div className="relative">
+        <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1 px-1 touch-pan-x">
+          {CATEGORIES.map((cat) => {
+            const Icon = ICON_MAP[cat.icon] || LayoutGrid;
+            const isActive = activeCategory === cat.id;
+            const count = itemCounts[cat.id] || 0;
 
-          return (
-            <button
-              key={cat.id}
-              onClick={() => onSelectCategory(cat.id)}
-              className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-150 flex-shrink-0 shadow-sm ${
-                isActive
-                  ? 'bg-emerald-600 text-white shadow-emerald-200/50 shadow-md transform -translate-y-0.5'
-                  : 'bg-emerald-50/80 text-emerald-900 hover:bg-emerald-100/90 border border-emerald-200/70'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-emerald-700'}`} />
-              <span>{cat.label}</span>
-              <span
-                className={`ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+            return (
+              <button
+                key={cat.id}
+                onClick={() => onSelectCategory(cat.id)}
+                className={`flex items-center space-x-1.5 sm:space-x-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm whitespace-nowrap transition-all duration-150 flex-shrink-0 active:scale-95 shadow-2xs ${
                   isActive
-                    ? 'bg-white/20 text-white'
-                    : 'bg-emerald-200/80 text-emerald-800'
+                    ? 'bg-emerald-600 text-white shadow-emerald-200/60 shadow-md ring-2 ring-emerald-600/30'
+                    : 'bg-emerald-50/90 text-emerald-900 hover:bg-emerald-100 border border-emerald-200/80'
                 }`}
               >
-                {count}
-              </span>
-            </button>
-          );
-        })}
+                <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isActive ? 'text-white' : 'text-emerald-700'}`} />
+                <span>{cat.label}</span>
+                <span
+                  className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold ${
+                    isActive
+                      ? 'bg-white/25 text-white'
+                      : 'bg-emerald-200/90 text-emerald-800'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

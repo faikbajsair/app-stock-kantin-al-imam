@@ -7,7 +7,6 @@ import DynamicStockModal from './components/DynamicStockModal';
 import ReportsModal from './components/ReportsModal';
 import DatabaseSetupModal from './components/DatabaseSetupModal';
 import { gasService } from './services/gasService';
-import { storageService } from './services/storageService';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState('Bu Shalatina');
@@ -166,7 +165,7 @@ export default function App() {
       />
 
       {/* 2. Main Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
         
         {/* Ringkasan Dashboard Terpisah (Modal Kantin vs Kewajiban Setoran) */}
         <DashboardSummary
@@ -197,8 +196,20 @@ export default function App() {
       </main>
 
       {/* 3. Footer */}
-      <footer className="bg-white border-t border-slate-200/80 py-4 text-center text-xs text-slate-500">
-        <p>Sistem Manajemen Stok & Konsinyasi Kantin Al-Imam • Versi 2.0 (5 Kategori Bisnis Aktual)</p>
+      <footer className="bg-white border-t border-slate-200/80 py-5 text-center text-xs text-slate-500">
+        <div className="flex flex-col items-center justify-center space-y-1.5 px-4">
+          <img 
+            src="/logo-alimam.png" 
+            alt="Al-Imam Logo" 
+            className="h-8 w-auto opacity-75 object-contain"
+          />
+          <p className="font-semibold text-slate-700">
+            Sistem Manajemen Stok & Konsinyasi Kantin Al-Imam
+          </p>
+          <p className="text-[11px] text-slate-400">
+            Al-Imam Islamic School • Versi 2.0 (5 Kategori Bisnis Aktual)
+          </p>
+        </div>
       </footer>
 
       {/* 4. Modals */}
