@@ -1,8 +1,5 @@
 import { storageService } from './storageService';
 
-/**
- * Format timestamp / ISO Date to DD/MM/YYYY
- */
 function formatDate(val) {
   if (!val) return '';
   if (typeof val === 'string' && val.includes('T')) {
@@ -84,9 +81,6 @@ function normalizeItem(item, category) {
 }
 
 export const gasService = {
-  /**
-   * Ambil data lengkap dari Backend GAS jika URL diatur, atau fallback ke LocalStorage
-   */
   async fetchData() {
     const gasUrl = storageService.getGasUrl();
     if (!gasUrl) {
@@ -94,7 +88,8 @@ export const gasService = {
       return {
         isRemote: false,
         data: localData,
-        dashboard: storageService.calculateMetrics(localData)
+        dashboard: storageService.calculateMetrics(localData),
+        mutasiAnalytics: storageService.calculateMutasiAnalytics(localData.mutasi || [])
       };
     }
 
@@ -107,13 +102,27 @@ export const gasService = {
       if (json && json.success && json.data) {
         const raw = json.data;
 
-        // Normalisasi struktur item agar sesuai dengan tampilan frontend
         const normalizedData = {
           snack: (raw.snack || []).map(i => normalizeItem(i, 'snack')),
           minuman: (raw.minuman || []).map(i => normalizeItem(i, 'minuman')),
           ice_cream: (raw.ice_cream || []).map(i => normalizeItem(i, 'ice_cream')),
           konsinyasi_external: (raw.konsinyasi_external || []).map(i => normalizeItem(i, 'konsinyasi_external')),
           konsinyasi_guru: (raw.konsinyasi_guru || []).map(i => normalizeItem(i, 'konsinyasi_guru')),
+          mutasi: (raw.mutasi && raw.mutasi.length > 0) ? raw.mutasi.map(m => ({
+            id: m.id || m.iDTransaksi || m.idTransaksi || `MUT-${Date.now()}`,
+            tanggal: formatDate(m.tanggal),
+            waktu: m.waktu || '12:00:00',
+            tipe: String(m.tipe || 'MASUK').toUpperCase(),
+            kategori: m.kategori || 'Umum',
+            idProduk: m.idProduk || m.iDProduk || '-',
+            namaProduk: m.namaProduk || '',
+            jumlah: Number(m.jumlah) || 0,
+            satuan: m.satuan || 'Pcs',
+            hargaSatuan: Number(m.hargaSatuan) || 0,
+            totalNominal: Number(m.totalNominal) || 0,
+            keterangan: m.keterangan || '-',
+            petugas: m.petugas || 'Staf Kantin'
+          })) : storageService.loadLocalData().mutasi || [],
           teachersList: raw.teachersList && raw.teachersList.length > 0 ? raw.teachersList : [
             'Bu Nurul', 'Bu Rahma', 'Ustadz Abdullah', 'Bu Shalatina', 'Kak Dini'
           ],
@@ -121,12 +130,14 @@ export const gasService = {
         };
 
         const metrics = storageService.calculateMetrics(normalizedData);
+        const mutasiAnalytics = storageService.calculateMutasiAnalytics(normalizedData.mutasi);
         storageService.saveLocalData(normalizedData);
 
         return {
           isRemote: true,
           data: normalizedData,
-          dashboard: metrics
+          dashboard: metrics,
+          mutasiAnalytics
         };
       }
       throw new Error(json.message || 'Format respon GAS tidak valid');
@@ -137,18 +148,75 @@ export const gasService = {
         isRemote: false,
         warning: `Koneksi Google Sheets: ${err.message}`,
         data: localData,
-        dashboard: storageService.calculateMetrics(localData)
+        dashboard: storageService.calculateMetrics(localData),
+        mutasiAnalytics: storageService.calculateMutasiAnalytics(localData.mutasi || [])
       };
     }
   },
 
-  /**
-   * Tambah item ke kategori
-   */
+  async recordMutasi(mutasiData, user = 'Petugas Kantin') {
+    const gasUrl = storageService.getGasUrl();
+    const currentData = storageService.loadLocalData();
+
+    const today = new Date().toLocaleDateString('id-ID');
+    const now = new Date();
+    const pad = (n) => (n < 10 ? '0' + n : n);
+    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const dateCompact = today.replace(/\//g, '');
+    const count = (currentData.mutasi || []).length + 1;
+    const newId = `MUT-${dateCompact}-${String(count).padStart(3, '0')}`;
+
+    const jumlah = Number(mutasiData.jumlah) || 1;
+    const hargaSatuan = Number(mutasiData.hargaSatuan) || 0;
+    const totalNominal = Number(mutasiData.totalNominal) || (jumlah * hargaSatuan);
+
+    const formattedMutasi = {
+      id: newId,
+      tanggal: mutasiData.tanggal || today,
+      waktu: mutasiData.waktu || timeStr,
+      tipe: String(mutasiData.tipe || 'MASUK').toUpperCase(),
+      kategori: mutasiData.kategori || 'Umum',
+      idProduk: mutasiData.idProduk || '-',
+      namaProduk: mutasiData.namaProduk || '',
+      jumlah,
+      satuan: mutasiData.satuan || 'Pcs',
+      hargaSatuan,
+      totalNominal,
+      keterangan: mutasiData.keterangan || '-',
+      petugas: user
+    };
+
+    if (!currentData.mutasi) currentData.mutasi = [];
+    currentData.mutasi.unshift(formattedMutasi);
+    storageService.saveLocalData(currentData);
+
+    if (gasUrl) {
+      try {
+        await fetch(gasUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'recordMutasi',
+            data: mutasiData,
+            user
+          })
+        });
+      } catch (err) {
+        console.warn('Gagal mencatat mutasi ke GAS:', err);
+      }
+    }
+
+    return { 
+      success: true, 
+      mutasi: formattedMutasi, 
+      allData: currentData,
+      mutasiAnalytics: storageService.calculateMutasiAnalytics(currentData.mutasi)
+    };
+  },
+
   async addItem(category, itemData, user = 'Staf Kantin') {
     const gasUrl = storageService.getGasUrl();
-    
-    // Always update local state first for immediate UI responsiveness
     const currentData = storageService.loadLocalData();
     const idPrefix = {
       snack: 'SNK',
@@ -179,6 +247,33 @@ export const gasService = {
       }
     }
 
+    // Auto-record mutasi MASUK saat ada item baru
+    const nominal = category === 'snack' 
+      ? Number(itemData.hargaKartonLamaModal) || 0
+      : category === 'minuman' || category === 'ice_cream'
+      ? Number(itemData.harga1Karton) || 0
+      : Number(itemData.totalHarga) || 0;
+
+    const mutasiEntry = {
+      idProduk: newId,
+      namaProduk: itemData.namaProduk || itemData.namaProdukSupplier,
+      tipe: 'MASUK',
+      kategori: category.replace('_', ' ').toUpperCase(),
+      jumlah: Number(itemData.stockMasukPcs || itemData.jumlahProdukPcs || 1),
+      satuan: category === 'snack' ? 'Karton' : category === 'minuman' ? 'Karton' : category === 'ice_cream' ? 'Box' : 'Pcs',
+      hargaSatuan: Number(itemData.hargaSatuan || itemData.harga1Karton || 0),
+      totalNominal: nominal,
+      keterangan: `Input awal / restock produk baru`,
+      petugas: user
+    };
+    if (!currentData.mutasi) currentData.mutasi = [];
+    currentData.mutasi.unshift({
+      id: `MUT-${Date.now()}`,
+      tanggal: today,
+      waktu: new Date().toLocaleTimeString('id-ID'),
+      ...mutasiEntry
+    });
+
     storageService.saveLocalData(currentData);
 
     if (gasUrl) {
@@ -202,9 +297,6 @@ export const gasService = {
     return { success: true, item: formattedItem, allData: currentData };
   },
 
-  /**
-   * Update item
-   */
   async updateItem(category, id, itemData, user = 'Staf Kantin') {
     const gasUrl = storageService.getGasUrl();
     const currentData = storageService.loadLocalData();
@@ -243,9 +335,6 @@ export const gasService = {
     return { success: true, allData: currentData };
   },
 
-  /**
-   * Update Status Konsinyasi (Lunas / Sudah Setor)
-   */
   async updateStatus(category, id, newStatus, user = 'Bu Shalatina') {
     const gasUrl = storageService.getGasUrl();
     const currentData = storageService.loadLocalData();
@@ -284,9 +373,6 @@ export const gasService = {
     return { success: true, allData: currentData };
   },
 
-  /**
-   * Hapus item
-   */
   async deleteItem(category, id, user = 'Staf Kantin') {
     const gasUrl = storageService.getGasUrl();
     const currentData = storageService.loadLocalData();
@@ -317,9 +403,6 @@ export const gasService = {
     return { success: true, allData: currentData };
   },
 
-  /**
-   * Inisialisasi setupDatabase di Google Sheets
-   */
   async triggerSetupDatabase() {
     const gasUrl = storageService.getGasUrl();
     if (!gasUrl) {

@@ -42,7 +42,7 @@ function doPost(e) {
     
     const action = body.action;
     const category = body.category;
-    const user = body.user || 'Staf Kantin';
+    const user = body.user || 'Petugas Kantin';
     let responseData;
     
     switch (action) {
@@ -68,6 +68,10 @@ function doPost(e) {
         
       case 'updateKonsinyasiStatus':
         responseData = updateKonsinyasiStatus(category, body.id, body.status, user);
+        break;
+
+      case 'recordMutasi':
+        responseData = recordMutasi(body.data, user);
         break;
         
       default:

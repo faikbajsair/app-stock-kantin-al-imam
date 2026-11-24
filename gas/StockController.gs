@@ -1,11 +1,12 @@
 /**
  * STOCK CONTROLLER - KANTIN AL-IMAM
- * Backend Controller untuk Pengelolaan 5 Kategori Produk Kantin:
+ * Backend Controller untuk Pengelolaan 5 Kategori Produk & Sistem Mutasi Stok:
  * - SNACK (Sheet: Stock_Snack)
  * - MINUMAN (Sheet: Stock_Minuman)
  * - ICE CREAM (Sheet: Stock_IceCream)
  * - KONSINYASI EXTERNAL (Sheet: Konsinyasi_External)
  * - KONSINYASI GURU (Sheet: Konsinyasi_Guru)
+ * - MUTASI STOCK (Sheet: Mutasi_Stock) -> Pemasukan & Pengeluaran Stok
  */
 
 const CATEGORY_MAP = {
@@ -13,12 +14,10 @@ const CATEGORY_MAP = {
   minuman: 'Stock_Minuman',
   ice_cream: 'Stock_IceCream',
   konsinyasi_external: 'Konsinyasi_External',
-  konsinyasi_guru: 'Konsinyasi_Guru'
+  konsinyasi_guru: 'Konsinyasi_Guru',
+  mutasi_stock: 'Mutasi_Stock'
 };
 
-/**
- * Format tanggal Indonesia DD/MM/YYYY HH:mm:ss
- */
 function getNowFormatted() {
   const d = new Date();
   const pad = (n) => (n < 10 ? '0' + n : n);
@@ -31,17 +30,27 @@ function getTodayFormatted() {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
+function getTimeFormatted() {
+  const d = new Date();
+  const pad = (n) => (n < 10 ? '0' + n : n);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 /**
- * Mengambil semua data dari ke-5 kategori + ringkasan dashboard
+ * Mengambil semua data lengkap + ringkasan mutasi & dashboard
  */
 function getAllData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mutasiRows = getSheetRows(ss, CATEGORY_MAP.mutasi_stock);
+
   const result = {
     snack: getSheetRows(ss, CATEGORY_MAP.snack),
     minuman: getSheetRows(ss, CATEGORY_MAP.minuman),
     ice_cream: getSheetRows(ss, CATEGORY_MAP.ice_cream),
     konsinyasi_external: getSheetRows(ss, CATEGORY_MAP.konsinyasi_external),
     konsinyasi_guru: getSheetRows(ss, CATEGORY_MAP.konsinyasi_guru),
+    mutasi: mutasiRows,
+    mutasiAnalytics: calculateMutasiAnalytics(mutasiRows),
     teachersList: getUniqueTeachers(ss),
     dashboard: calculateDashboardMetrics(ss),
     lastSynced: getNowFormatted()
@@ -49,9 +58,6 @@ function getAllData() {
   return result;
 }
 
-/**
- * Helper membaca baris sheet menjadi array of object
- */
 function getSheetRows(ss, sheetName) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) return [];
@@ -73,23 +79,17 @@ function getSheetRows(ss, sheetName) {
   });
 }
 
-/**
- * Normalisasi header menjadi camelCase key
- */
 function normalizeKey(header) {
   return header
     .toString()
     .trim()
-    .replace(/\s*\([^)]*\)/g, '') // hilangkan kurung (Pcs), dll.
+    .replace(/\s*\([^)]*\)/g, '')
     .replace(/[^a-zA-Z0-9 ]/g, '')
     .replace(/\s+(.)/g, (_, c) => c.toUpperCase())
     .replace(/\s/g, '')
     .replace(/^(.)/, (_, c) => c.toLowerCase());
 }
 
-/**
- * Autocomplete nama guru dari riwayat Konsinyasi_Guru
- */
 function getUniqueTeachers(ss) {
   const sheet = ss.getSheetByName(CATEGORY_MAP.konsinyasi_guru);
   if (!sheet) return ['Bu Nurul', 'Bu Rahma', 'Ustadz Abdullah', 'Bu Shalatina', 'Kak Dini'];
@@ -97,20 +97,153 @@ function getUniqueTeachers(ss) {
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return ['Bu Nurul', 'Bu Rahma', 'Ustadz Abdullah', 'Bu Shalatina', 'Kak Dini'];
   
-  // Kolom C adalah Nama Guru (index col 3)
   const values = sheet.getRange(2, 3, lastRow - 1, 1).getValues().flat();
   const set = new Set(values.filter(v => v && String(v).trim().length > 0));
   
-  // Default minimal
   ['Bu Nurul', 'Bu Rahma', 'Ustadz Abdullah', 'Bu Shalatina', 'Kak Dini'].forEach(t => set.add(t));
   return Array.from(set);
 }
 
 /**
- * Hitung Metrik Dashboard:
- * 1. Total Nilai Stok Reguler (Snack, Minuman, Ice Cream)
- * 2. Total Kewajiban Setor Konsinyasi (External & Guru) yang Belum Lunas/Disetor
+ * Kalkulasi Analitik Mutasi Stok: Harian, Mingguan, Bulanan
  */
+function calculateMutasiAnalytics(rows) {
+  const todayStr = getTodayFormatted(); // "DD/MM/YYYY"
+  const now = new Date();
+
+  // Helper parsing date DD/MM/YYYY
+  function parseDate(str) {
+    if (!str) return null;
+    if (str instanceof Date) return str;
+    const s = String(str).trim();
+    if (s.includes('/')) {
+      const parts = s.split('/');
+      if (parts.length === 3) {
+        return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      }
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  const daily = { masukQty: 0, masukNominal: 0, keluarQty: 0, keluarNominal: 0, transaksiCount: 0 };
+  const weekly = { masukQty: 0, masukNominal: 0, keluarQty: 0, keluarNominal: 0, transaksiCount: 0 };
+  const monthly = { masukQty: 0, masukNominal: 0, keluarQty: 0, keluarNominal: 0, transaksiCount: 0 };
+  const allTime = { masukQty: 0, masukNominal: 0, keluarQty: 0, keluarNominal: 0, transaksiCount: 0 };
+
+  const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  rows.forEach(item => {
+    const tgl = parseDate(item.tanggal);
+    const tipe = String(item.tipe || '').toUpperCase();
+    const qty = Number(item.jumlah) || 0;
+    const nominal = Number(item.totalNominal) || 0;
+
+    allTime.transaksiCount++;
+    if (tipe === 'MASUK') {
+      allTime.masukQty += qty;
+      allTime.masukNominal += nominal;
+    } else {
+      allTime.keluarQty += qty;
+      allTime.keluarNominal += nominal;
+    }
+
+    if (!tgl) return;
+
+    // 1. Harian (Hari Ini)
+    const isToday = tgl.getDate() === now.getDate() && tgl.getMonth() === now.getMonth() && tgl.getFullYear() === now.getFullYear();
+    if (isToday) {
+      daily.transaksiCount++;
+      if (tipe === 'MASUK') {
+        daily.masukQty += qty;
+        daily.masukNominal += nominal;
+      } else {
+        daily.keluarQty += qty;
+        daily.keluarNominal += nominal;
+      }
+    }
+
+    // 2. Mingguan (7 Hari Terakhir)
+    if (tgl >= sevenDaysAgo) {
+      weekly.transaksiCount++;
+      if (tipe === 'MASUK') {
+        weekly.masukQty += qty;
+        weekly.masukNominal += nominal;
+      } else {
+        weekly.keluarQty += qty;
+        weekly.keluarNominal += nominal;
+      }
+    }
+
+    // 3. Bulanan (Bulan Ini)
+    if (tgl.getMonth() === currentMonth && tgl.getFullYear() === currentYear) {
+      monthly.transaksiCount++;
+      if (tipe === 'MASUK') {
+        monthly.masukQty += qty;
+        monthly.masukNominal += nominal;
+      } else {
+        monthly.keluarQty += qty;
+        monthly.keluarNominal += nominal;
+      }
+    }
+  });
+
+  return {
+    daily: { ...daily, netNominal: daily.keluarNominal - daily.masukNominal },
+    weekly: { ...weekly, netNominal: weekly.keluarNominal - weekly.masukNominal },
+    monthly: { ...monthly, netNominal: monthly.keluarNominal - monthly.masukNominal },
+    allTime: { ...allTime, netNominal: allTime.keluarNominal - allTime.masukNominal }
+  };
+}
+
+/**
+ * Catat Transaksi Mutasi Stok Masuk / Keluar Baru
+ */
+function recordMutasi(data, user = 'Petugas Kantin') {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CATEGORY_MAP.mutasi_stock);
+  if (!sheet) {
+    sheet = ss.insertSheet(CATEGORY_MAP.mutasi_stock);
+  }
+
+  const today = getTodayFormatted();
+  const time = getTimeFormatted();
+  const dateCompact = today.replace(/\//g, '');
+  const count = Math.max(sheet.getLastRow(), 1);
+  const newId = `MUT-${dateCompact}-${String(count).padStart(3, '0')}`;
+
+  const jumlah = Number(data.jumlah) || 1;
+  const hargaSatuan = Number(data.hargaSatuan) || 0;
+  const totalNominal = Number(data.totalNominal) || (jumlah * hargaSatuan);
+
+  const row = [
+    newId,
+    data.tanggal || today,
+    data.waktu || time,
+    String(data.tipe || 'MASUK').toUpperCase(),
+    data.kategori || 'Umum',
+    data.idProduk || '-',
+    data.namaProduk || '',
+    jumlah,
+    data.satuan || 'Pcs',
+    hargaSatuan,
+    totalNominal,
+    data.keterangan || '-',
+    user
+  ];
+
+  sheet.appendRow(row);
+  logAction('Mutasi_Stock', newId, data.tipe, `Mutasi ${data.tipe}: ${data.namaProduk} (${jumlah} ${data.satuan})`, user);
+
+  return {
+    success: true,
+    message: `Mutasi ${data.tipe} berhasil dicatat: ${newId}`,
+    mutasi: row
+  };
+}
+
 function calculateDashboardMetrics(ss) {
   let nilaiStokReguler = 0;
   let totalItemReguler = 0;
@@ -121,14 +254,12 @@ function calculateDashboardMetrics(ss) {
   snackRows.forEach(row => {
     totalItemReguler++;
     const hargaKarton = Number(row.hargaKartonLamaModal) || 0;
-    // Ekstrak perkiraan karton jika ada angka
     const stokStr = String(row.stokAktual || '');
     const kartonMatch = stokStr.match(/(\d+)\s*karton/i);
     const dusMatch = stokStr.match(/(\d+)\s*dus/i);
     const kartonQty = kartonMatch ? Number(kartonMatch[1]) : 1;
     const dusQty = dusMatch ? Number(dusMatch[1]) : 0;
     const hargaDus = Number(row.hargaPerdus) || (hargaKarton > 0 ? hargaKarton / 6 : 0);
-    
     const nilaiItem = (kartonQty * hargaKarton) + (dusQty * hargaDus);
     nilaiStokReguler += nilaiItem > 0 ? nilaiItem : hargaKarton;
   });
@@ -141,7 +272,6 @@ function calculateDashboardMetrics(ss) {
     const stokStr = String(row.stokAktual || '');
     const num = Number(stokStr.replace(/[^0-9.]/g, '')) || 0;
     nilaiStokReguler += harga * (num > 0 ? num : 1);
-    
     const min = Number(row.stokMinimum) || 0;
     if (num <= min) totalStokMenipis++;
   });
@@ -154,7 +284,6 @@ function calculateDashboardMetrics(ss) {
     const stokStr = String(row.stokAktual || '');
     const num = Number(stokStr.replace(/[^0-9.]/g, '')) || 0;
     nilaiStokReguler += harga * (num > 0 ? num : 1);
-    
     const min = Number(row.stokMinimum) || 0;
     if (num <= min) totalStokMenipis++;
   });
@@ -197,9 +326,6 @@ function calculateDashboardMetrics(ss) {
   };
 }
 
-/**
- * Tambah Item Baru ke Kategori Tertentu
- */
 function addItem(category, data, user = 'Staf Kantin') {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetName = CATEGORY_MAP[category];
@@ -225,7 +351,6 @@ function addItem(category, data, user = 'Staf Kantin') {
   
   switch (category) {
     case 'snack': {
-      // Kalkulasi Harga Perdus otomatis jika belum diisi
       const isiKarton = Number(data.isi1KartonPcs) || 1;
       const hargaKarton = Number(data.hargaKartonLamaModal) || 0;
       const isiPerdus = Number(data.isiPcsPerdus) || 1;
@@ -323,9 +448,6 @@ function addItem(category, data, user = 'Staf Kantin') {
   };
 }
 
-/**
- * Update Data Item berdasarkan ID
- */
 function updateItem(category, id, data, user = 'Staf Kantin') {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetName = CATEGORY_MAP[category];
@@ -333,9 +455,7 @@ function updateItem(category, id, data, user = 'Staf Kantin') {
   if (!sheet) throw new Error('Sheet tidak ditemukan: ' + sheetName);
   
   const lastRow = sheet.getLastRow();
-  const lastCol = sheet.getLastColumn();
   const idColValues = sheet.getRange(2, 1, Math.max(lastRow - 1, 1), 1).getValues().flat();
-  
   const rowIndex = idColValues.findIndex(val => String(val).trim() === String(id).trim());
   if (rowIndex === -1) throw new Error('Item ID ' + id + ' tidak ditemukan');
   
@@ -433,9 +553,6 @@ function updateItem(category, id, data, user = 'Staf Kantin') {
   };
 }
 
-/**
- * Update Status Cepat Konsinyasi (Lunas / Belum Lunas atau Sudah / Belum Setor)
- */
 function updateKonsinyasiStatus(category, id, newStatus, user = 'Bu Shalatina') {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetName = CATEGORY_MAP[category];
@@ -459,9 +576,6 @@ function updateKonsinyasiStatus(category, id, newStatus, user = 'Bu Shalatina') 
   };
 }
 
-/**
- * Hapus Item
- */
 function deleteItem(category, id, user = 'Staf Kantin') {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetName = CATEGORY_MAP[category];
@@ -483,9 +597,6 @@ function deleteItem(category, id, user = 'Staf Kantin') {
   };
 }
 
-/**
- * Log Audit Aksi ke sheet Log_Transaksi
- */
 function logAction(sheetName, id, action, note, user) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();

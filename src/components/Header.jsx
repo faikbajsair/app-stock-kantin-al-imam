@@ -8,7 +8,9 @@ import {
   X, 
   LogOut,
   ShieldCheck,
-  User
+  User,
+  Boxes,
+  ArrowLeftRight
 } from 'lucide-react';
 
 export default function Header({ 
@@ -18,7 +20,9 @@ export default function Header({
   onRefresh, 
   onOpenSetup, 
   onOpenReport,
-  loading 
+  loading,
+  currentView = 'stock', // 'stock' | 'mutasi'
+  onChangeView
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -51,6 +55,32 @@ export default function Header({
                 Al-Imam Islamic School
               </p>
             </div>
+          </div>
+
+          {/* Center Navigation Switch: Master Stok vs Mutasi Masuk/Keluar (Desktop & Tablet) */}
+          <div className="hidden lg:flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs">
+            <button
+              onClick={() => onChangeView('stock')}
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl font-bold transition ${
+                currentView === 'stock'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Boxes className="w-3.5 h-3.5" />
+              <span>Buku Stok Master (5 Kategori)</span>
+            </button>
+            <button
+              onClick={() => onChangeView('mutasi')}
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl font-bold transition ${
+                currentView === 'mutasi'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span>Mutasi Masuk / Keluar (Harian/Mingguan/Bulanan)</span>
+            </button>
           </div>
 
           {/* Desktop Right Controls (hidden on mobile, visible md+) */}
@@ -140,6 +170,32 @@ export default function Header({
             </button>
           </div>
 
+        </div>
+
+        {/* Mobile View Toggle Bar (Stock vs Mutasi) */}
+        <div className="lg:hidden py-2 border-t border-slate-100 grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => onChangeView('stock')}
+            className={`py-1.5 px-2 rounded-xl text-xs font-extrabold flex items-center justify-center space-x-1 transition ${
+              currentView === 'stock'
+                ? 'bg-emerald-600 text-white shadow-2xs'
+                : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            <Boxes className="w-3.5 h-3.5" />
+            <span>Buku Stok</span>
+          </button>
+          <button
+            onClick={() => onChangeView('mutasi')}
+            className={`py-1.5 px-2 rounded-xl text-xs font-extrabold flex items-center justify-center space-x-1 transition ${
+              currentView === 'mutasi'
+                ? 'bg-emerald-600 text-white shadow-2xs'
+                : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            <span>Mutasi Masuk/Keluar</span>
+          </button>
         </div>
 
         {/* Mobile Dropdown Panel */}

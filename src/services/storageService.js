@@ -3,8 +3,21 @@ import { INITIAL_SEED_DATA } from '../types/categoryData';
 const STORAGE_KEY = 'kantin_alimam_stock_data_v2';
 const GAS_URL_KEY = 'kantin_alimam_gas_url';
 
-// Default GAS URL from user deployment
 export const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycby1Pb1b6ElGZ4hR3tIwscdB-GxtIEGek5ZUPIiJy_50PI65AStVXxgkZzgDc_L0iGKHww/exec';
+
+function parseDate(str) {
+  if (!str) return null;
+  if (str instanceof Date) return str;
+  const s = String(str).trim();
+  if (s.includes('/')) {
+    const parts = s.split('/');
+    if (parts.length === 3) {
+      return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    }
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 export const storageService = {
   getGasUrl() {
@@ -12,7 +25,6 @@ export const storageService = {
     if (saved !== null) {
       return saved;
     }
-    // Default to deployed script if not explicitly customized
     localStorage.setItem(GAS_URL_KEY, DEFAULT_GAS_URL);
     return DEFAULT_GAS_URL;
   },
@@ -29,13 +41,16 @@ export const storageService = {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (!parsed.mutasi || parsed.mutasi.length === 0) {
+          parsed.mutasi = INITIAL_SEED_DATA.mutasi;
+        }
+        return parsed;
       }
     } catch (e) {
       console.error('Gagal membaca local storage:', e);
     }
     
-    // Default seed data
     const initial = JSON.parse(JSON.stringify(INITIAL_SEED_DATA));
     this.saveLocalData(initial);
     return initial;
@@ -55,6 +70,80 @@ export const storageService = {
     return initial;
   },
 
+  calculateMutasiAnalytics(mutasiList = []) {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const daily = { masukQty: 0, masukNominal: 0, keluarQty: 0, keluarNominal: 0, count: 0 };
+    const weekly = { masukQty: 0, masukNominal: 0, keluarQty: 0, keluarNominal: 0, count: 0 };
+    const monthly = { masukQty: 0, masukNominal: 0, keluarQty: 0, keluarNominal: 0, count: 0 };
+    const allTime = { masukQty: 0, masukNominal: 0, keluarQty: 0, keluarNominal: 0, count: 0 };
+
+    mutasiList.forEach(item => {
+      const tgl = parseDate(item.tanggal);
+      const tipe = String(item.tipe || '').toUpperCase();
+      const qty = Number(item.jumlah) || 0;
+      const nominal = Number(item.totalNominal) || 0;
+
+      allTime.count++;
+      if (tipe === 'MASUK') {
+        allTime.masukQty += qty;
+        allTime.masukNominal += nominal;
+      } else {
+        allTime.keluarQty += qty;
+        allTime.keluarNominal += nominal;
+      }
+
+      if (!tgl) return;
+
+      // 1. Hari ini (Daily)
+      const isToday = tgl.getDate() === now.getDate() && tgl.getMonth() === now.getMonth() && tgl.getFullYear() === now.getFullYear();
+      if (isToday) {
+        daily.count++;
+        if (tipe === 'MASUK') {
+          daily.masukQty += qty;
+          daily.masukNominal += nominal;
+        } else {
+          daily.keluarQty += qty;
+          daily.keluarNominal += nominal;
+        }
+      }
+
+      // 2. Minggu ini (Weekly / 7 Hari)
+      if (tgl >= sevenDaysAgo) {
+        weekly.count++;
+        if (tipe === 'MASUK') {
+          weekly.masukQty += qty;
+          weekly.masukNominal += nominal;
+        } else {
+          weekly.keluarQty += qty;
+          weekly.keluarNominal += nominal;
+        }
+      }
+
+      // 3. Bulan ini (Monthly)
+      if (tgl.getMonth() === currentMonth && tgl.getFullYear() === currentYear) {
+        monthly.count++;
+        if (tipe === 'MASUK') {
+          monthly.masukQty += qty;
+          monthly.masukNominal += nominal;
+        } else {
+          monthly.keluarQty += qty;
+          monthly.keluarNominal += nominal;
+        }
+      }
+    });
+
+    return {
+      daily: { ...daily, netNominal: daily.keluarNominal - daily.masukNominal },
+      weekly: { ...weekly, netNominal: weekly.keluarNominal - weekly.masukNominal },
+      monthly: { ...monthly, netNominal: monthly.keluarNominal - monthly.masukNominal },
+      allTime: { ...allTime, netNominal: allTime.keluarNominal - allTime.masukNominal }
+    };
+  },
+
   calculateMetrics(data) {
     if (!data) return {};
 
@@ -63,7 +152,6 @@ export const storageService = {
     let totalItemReguler = 0;
     let stokMenipis = 0;
 
-    // Snack
     (data.snack || []).forEach(item => {
       totalItemReguler++;
       const hargaKarton = Number(item.hargaKartonLamaModal || item.hargaKarton) || 0;
@@ -77,7 +165,6 @@ export const storageService = {
       nilaiStokReguler += totalNilai > 0 ? totalNilai : hargaKarton;
     });
 
-    // Minuman
     (data.minuman || []).forEach(item => {
       totalItemReguler++;
       const harga = Number(item.harga1Karton) || 0;
@@ -89,7 +176,6 @@ export const storageService = {
       if (num <= min) stokMenipis++;
     });
 
-    // Ice Cream
     (data.ice_cream || []).forEach(item => {
       totalItemReguler++;
       const harga = Number(item.harga1Karton) || 0;
