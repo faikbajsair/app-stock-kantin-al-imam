@@ -6,10 +6,14 @@ import StockList from './components/StockList';
 import DynamicStockModal from './components/DynamicStockModal';
 import ReportsModal from './components/ReportsModal';
 import DatabaseSetupModal from './components/DatabaseSetupModal';
+import LoginPage from './components/LoginPage';
 import { gasService } from './services/gasService';
+import { authService } from './services/authService';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState('Bu Shalatina');
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
+
   const [activeCategory, setActiveCategory] = useState('all');
   const [stockData, setStockData] = useState({
     snack: [],
@@ -30,7 +34,7 @@ export default function App() {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
 
-  // Load data on startup
+  // Load data on startup if logged in
   const loadData = async () => {
     setLoading(true);
     try {
@@ -46,8 +50,20 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (currentUser) {
+      loadData();
+    }
+  }, [currentUser]);
+
+  // Auth Handlers
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    setCurrentUser(null);
+  };
 
   // Compute item counts for tabs
   const itemCounts = useMemo(() => {
@@ -83,7 +99,12 @@ export default function App() {
     return [...snacks, ...drinks, ...ice, ...ext, ...guru];
   }, [stockData, activeCategory]);
 
-  // Handlers
+  // If user is not authenticated, show LoginPage
+  if (!currentUser) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Stock CRUD Handlers
   const handleOpenAdd = () => {
     setEditingItem(null);
     setIsModalOpen(true);
@@ -97,10 +118,11 @@ export default function App() {
   const handleSaveModal = async (cat, formData) => {
     setLoading(true);
     try {
+      const activeUserName = currentUser?.name || 'Petugas Kantin';
       if (editingItem) {
-        await gasService.updateItem(cat, editingItem.id, formData, currentUser);
+        await gasService.updateItem(cat, editingItem.id, formData, activeUserName);
       } else {
-        await gasService.addItem(cat, formData, currentUser);
+        await gasService.addItem(cat, formData, activeUserName);
       }
       setIsModalOpen(false);
       setEditingItem(null);
@@ -116,7 +138,7 @@ export default function App() {
     if (!window.confirm(`Yakin ingin menghapus item ${id}?`)) return;
     setLoading(true);
     try {
-      await gasService.deleteItem(cat, id, currentUser);
+      await gasService.deleteItem(cat, id, currentUser?.name || 'Petugas Kantin');
       await loadData();
     } catch (err) {
       alert('Gagal menghapus: ' + err.message);
@@ -135,7 +157,7 @@ export default function App() {
 
     setLoading(true);
     try {
-      await gasService.updateStatus(cat, id, nextStatus, currentUser);
+      await gasService.updateStatus(cat, id, nextStatus, currentUser?.name || 'Petugas Kantin');
       await loadData();
     } catch (err) {
       alert('Gagal memperbarui status: ' + err.message);
@@ -156,7 +178,7 @@ export default function App() {
       {/* 1. Header Navigation */}
       <Header
         currentUser={currentUser}
-        setCurrentUser={setCurrentUser}
+        onLogout={handleLogout}
         isRemote={isRemote}
         onRefresh={loadData}
         onOpenSetup={() => setIsSetupOpen(true)}
@@ -207,7 +229,7 @@ export default function App() {
             Sistem Manajemen Stok & Konsinyasi Kantin Al-Imam
           </p>
           <p className="text-[11px] text-slate-400">
-            Al-Imam Islamic School • Versi 2.0 (5 Kategori Bisnis Aktual)
+            Al-Imam Islamic School • Petugas Aktif: <strong>{currentUser.name}</strong> ({currentUser.roleLabel})
           </p>
         </div>
       </footer>

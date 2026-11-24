@@ -4,6 +4,19 @@ Aplikasi manajemen operasional stok kantin Al-Imam dengan integrasi Google Apps 
 
 ---
 
+## 🔐 Kredensial Login Pengguna
+
+Sistem dilengkapi fitur autentikasi dengan akun khusus:
+
+| Peran / Nama | Username | Password | Hak Akses |
+| :--- | :--- | :--- | :--- |
+| **Bu Shalatina** *(Admin / Pengelola)* | `shalatina` *(atau `admin`)* | `shalatina123` | Akses penuh: kelola stok, buku kas konsinyasi, laporan finansial, dan setup database. |
+| **Kak Dini** *(Staf Kantin)* | `kakdini` *(atau `dini`)* | `dini123` | Operasional harian: input stok snack, minuman, ice cream, pencatatan titipan guru harian dengan autocomplete. |
+
+> Tersedia tombol **"Pilih Akun Cepat (Demo)"** pada halaman login untuk masuk dalam satu klik.
+
+---
+
 ## 📌 1. Struktur 5 Kategori Bisnis Aktual & Skema Sheet
 
 Arsitektur database spreadsheet dinormalisasi menjadi 5 sheet terpisah:
@@ -94,53 +107,26 @@ Arsitektur database spreadsheet dinormalisasi menjadi 5 sheet terpisah:
 
 ## 🎨 2. Fitur Unggulan UI/UX Frontend
 
-1. **Tab Navigasi Kategori (Scrollable Pastel Green Pills):**
+1. **Logo Resmi Al-Imam:**
+   - Terpasang rapi di header, tab browser favicon, kop laporan cetak, dan halaman login.
+2. **Tab Navigasi Kategori (Scrollable Pastel Green Pills):**
    - Tab ramah sentuhan di mobile dan desktop: `[Semua Kategori] [Snack] [Minuman] [Ice Cream] [Konsinyasi External] [Konsinyasi Guru]` lengkap dengan badge jumlah item.
-2. **Ringkasan Dashboard Terpisah:**
+3. **Ringkasan Dashboard Terpisah:**
    - **Kartu 1:** *Total Nilai Stok Reguler (Snack, Minuman, Ice Cream)* untuk mengawasi modal kantin.
    - **Kartu 2:** *Total Kewajiban Setor Konsinyasi (External & Guru)* untuk memisahkan uang titipan supplier dan guru agar tidak tercampur dengan modal kantin.
-3. **Form Input Dinamis (+ Tambah Stok / Titipan):**
+4. **Form Input Dinamis (+ Tambah Stok / Titipan):**
    - Field input berganti otomatis mengikuti kategori yang dipilih.
+   - Bottom-sheet ramah mobile dengan sticky button.
    - Kalkulator otomatis harga dus snack dan kalkulasi sisa & total konsinyasi.
    - Autocomplete nama guru harian untuk staf Kak Dini.
-4. **Buku Stok Responsif (Tabel & Card View):**
+5. **Buku Stok Responsif (Tabel & Card View Switcher):**
    - Tampilan tabel rapi di layar laptop/desktop Bu Shalatina.
    - Tampilan card interaktif di smartphone staf Kak Dini.
-5. **Mode Dual (Online Google Sheets / Offline Local):**
-   - Berjalan mandiri langsung di browser via LocalStorage dengan data auto-seed lengkap, serta dapat disambungkan ke Web App GAS hanya dengan memasukkan URL deployment.
 
 ---
 
-## ⚙️ 3. Panduan Deployment Google Apps Script (GAS)
+## 🌐 3. Link Deployment
 
-1. Buka [Google Sheets](https://sheets.new) baru.
-2. Beri nama Spreadsheet, misalnya: `Database Kantin Al-Imam`.
-3. Klik menu **Ekstensi (Extensions) > Apps Script**.
-4. Buat file-file skrip berikut dari folder `gas/`:
-   - `Setup.gs`: Berisi fungsi `setupDatabase()` dan konfigurasi schema 5 sheet + header warna pastel + auto-seed.
-   - `StockController.gs`: Berisi logika CRUD dan kalkulasi dashboard.
-   - `Code.gs`: Berisi endpoint API `doGet` dan `doPost`.
-   - `appsscript.json`: Manifest proyek Apps Script.
-5. Jalankan fungsi `setupDatabase()` satu kali di editor GAS untuk membuat ke-5 sheet dan mengisinya dengan data awal.
-6. Klik tombol **Deploy > New Deployment (Penerapan Baru)**:
-   - Pilih jenis: **Web App**.
-   - Execute as: **Me (User deploying)**.
-   - Who has access: **Anyone (Siapa saja)**.
-7. Salin Web App URL yang dihasilkan (misal `https://script.google.com/macros/s/.../exec`).
-8. Di aplikasi frontend, klik ikon database di pojok kanan atas, tempelkan URL tersebut, lalu simpan!
-
----
-
-## 💻 4. Menjalankan Frontend
-
-```bash
-# Install dependensi (jika belum)
-npm install
-
-# Jalankan server pengembangan lokal
-npm run dev
-
-# Build untuk produksi
-npm run build
-```
-Aplikasi siap digunakan oleh Bu Shalatina dan Kak Dini!
+- **Vercel Production:** [https://app-stock-kantin-al-imam.vercel.app](https://app-stock-kantin-al-imam.vercel.app)
+- **GitHub Repository:** [https://github.com/faikbajsair/app-stock-kantin-al-imam](https://github.com/faikbajsair/app-stock-kantin-al-imam)
+- **Google Apps Script Web App:** [https://script.google.com/macros/s/AKfycby1Pb1b6ElGZ4hR3tIwscdB-GxtIEGek5ZUPIiJy_50PI65AStVXxgkZzgDc_L0iGKHww/exec](https://script.google.com/macros/s/AKfycby1Pb1b6ElGZ4hR3tIwscdB-GxtIEGek5ZUPIiJy_50PI65AStVXxgkZzgDc_L0iGKHww/exec)

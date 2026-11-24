@@ -6,13 +6,14 @@ import {
   Database, 
   Menu, 
   X, 
-  ChevronDown,
-  CheckCircle2
+  LogOut,
+  ShieldCheck,
+  User
 } from 'lucide-react';
 
 export default function Header({ 
   currentUser, 
-  setCurrentUser, 
+  onLogout,
   isRemote, 
   onRefresh, 
   onOpenSetup, 
@@ -20,6 +21,10 @@ export default function Header({
   loading 
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const userName = currentUser?.name || 'Petugas Kantin';
+  const userRole = currentUser?.roleLabel || 'Staf Kantin';
+  const isAdmin = currentUser?.role === 'admin';
 
   return (
     <header className="bg-white border-b border-emerald-100 sticky top-0 z-30 shadow-xs">
@@ -48,10 +53,10 @@ export default function Header({
             </div>
           </div>
 
-          {/* Desktop Right Controls (hidden on mobile, visible sm+) */}
+          {/* Desktop Right Controls (hidden on mobile, visible md+) */}
           <div className="hidden md:flex items-center space-x-2.5">
             
-            {/* Status Connection */}
+            {/* Status Connection (Admin can configure) */}
             <button
               onClick={onOpenSetup}
               title="Pengaturan Koneksi Google Sheets"
@@ -66,18 +71,19 @@ export default function Header({
               <Database className="w-3.5 h-3.5 opacity-70" />
             </button>
 
-            {/* Active User Switch */}
-            <div className="flex items-center bg-slate-100/90 rounded-xl px-2 py-1 border border-slate-200 text-xs">
-              <UserCheck className="w-3.5 h-3.5 text-emerald-700 mr-1.5" />
-              <select
-                value={currentUser}
-                onChange={(e) => setCurrentUser(e.target.value)}
-                className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer py-0.5 text-xs"
-              >
-                <option value="Bu Shalatina">Bu Shalatina (Pengelola)</option>
-                <option value="Kak Dini">Kak Dini (Staf Stok)</option>
-                <option value="Admin Kantin">Admin Kantin</option>
-              </select>
+            {/* Logged in User Profile Card */}
+            <div className="flex items-center bg-slate-100/90 rounded-xl px-2.5 py-1 border border-slate-200 space-x-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs">
+                {isAdmin ? <ShieldCheck className="w-4 h-4" /> : <User className="w-4 h-4" />}
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-extrabold text-slate-800 leading-tight">
+                  {userName}
+                </p>
+                <p className="text-[10px] text-emerald-700 font-semibold leading-none">
+                  {userRole}
+                </p>
+              </div>
             </div>
 
             {/* Report Button */}
@@ -99,10 +105,23 @@ export default function Header({
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
             </button>
 
+            {/* Logout Button */}
+            <button
+              onClick={onLogout}
+              className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-slate-200 hover:border-rose-200 transition"
+              title="Keluar / Logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+
           </div>
 
-          {/* Mobile Right Controls: Compact Buttons + Menu Toggle */}
+          {/* Mobile Right Controls: User avatar + Refresh + Menu Toggle */}
           <div className="flex md:hidden items-center space-x-1.5">
+            <div className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-900 flex items-center space-x-1">
+              <span>{userName}</span>
+            </div>
+
             <button
               onClick={onRefresh}
               disabled={loading}
@@ -126,21 +145,31 @@ export default function Header({
         {/* Mobile Dropdown Panel */}
         {mobileMenuOpen && (
           <div className="md:hidden py-3 px-1 border-t border-slate-100 space-y-2.5 animate-in slide-in-from-top-2 duration-150">
-            {/* User Selector */}
-            <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 flex items-center">
-                <UserCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                Petugas:
-              </span>
-              <select
-                value={currentUser}
-                onChange={(e) => setCurrentUser(e.target.value)}
-                className="bg-white font-bold text-slate-800 text-xs px-2 py-1 rounded-lg border border-slate-200"
+            {/* User Profile Bar */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                  {isAdmin ? <ShieldCheck className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                </div>
+                <div>
+                  <p className="text-xs font-extrabold text-slate-800">
+                    {userName}
+                  </p>
+                  <p className="text-[10px] text-emerald-700 font-semibold">
+                    {userRole}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onLogout();
+                }}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 flex items-center space-x-1"
               >
-                <option value="Bu Shalatina">Bu Shalatina (Pengelola)</option>
-                <option value="Kak Dini">Kak Dini (Staf Stok)</option>
-                <option value="Admin Kantin">Admin Kantin</option>
-              </select>
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Keluar</span>
+              </button>
             </div>
 
             {/* Connection Status & Report Buttons */}
